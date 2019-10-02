@@ -7,5 +7,5 @@ import ru.tinkoff.phobos.syntax.attr
 final case class Restriction(@attr base: Option[String])
 
 object Restriction {
-  implicit val restrictionElementDecoder: ElementDecoder[Restriction] = derivation.deriveElementDecoder
+  implicit val restrictionElementDecoder: ElementDecoder[Restriction] = derivation.semiauto.deriveElementDecoder
 }

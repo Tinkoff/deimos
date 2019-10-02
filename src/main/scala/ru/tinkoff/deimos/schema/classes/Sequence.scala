@@ -16,5 +16,5 @@ final case class Sequence(
 ) extends Elements
 
 object Sequence {
-  implicit val sequenceElementDecoder: ElementDecoder[Sequence] = derivation.deriveElementDecoder
+  implicit val sequenceElementDecoder: ElementDecoder[Sequence] = derivation.semiauto.deriveElementDecoder
 }

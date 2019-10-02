@@ -6,5 +6,5 @@ import ru.tinkoff.phobos.derivation
 final case class XsdList()
 
 object XsdList {
-  implicit val xsdListElementDecoder: ElementDecoder[XsdList] = derivation.deriveElementDecoder
+  implicit val xsdListElementDecoder: ElementDecoder[XsdList] = derivation.semiauto.deriveElementDecoder
 }

@@ -20,5 +20,5 @@ final case class Schema(
 )
 
 object Schema {
-  implicit val schemaElementDecoder: ElementDecoder[Schema] = derivation.deriveElementDecoder
+  implicit val schemaElementDecoder: ElementDecoder[Schema] = derivation.semiauto.deriveElementDecoder
 }

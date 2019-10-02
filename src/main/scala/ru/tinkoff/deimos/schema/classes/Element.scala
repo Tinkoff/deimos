@@ -19,5 +19,5 @@ final case class Element(
 ) extends Global
 
 object Element {
-  implicit val elementElementDecoder: ElementDecoder[Element] = derivation.deriveElementDecoder
+  implicit val elementElementDecoder: ElementDecoder[Element] = derivation.semiauto.deriveElementDecoder
 }

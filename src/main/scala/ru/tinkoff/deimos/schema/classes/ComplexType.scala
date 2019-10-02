@@ -21,5 +21,5 @@ final case class ComplexType(
 ) extends Global with Elements
 
 object ComplexType {
-  implicit val complexTypeElementDecoder: ElementDecoder[ComplexType] = derivation.deriveElementDecoder
+  implicit val complexTypeElementDecoder: ElementDecoder[ComplexType] = derivation.semiauto.deriveElementDecoder
 }

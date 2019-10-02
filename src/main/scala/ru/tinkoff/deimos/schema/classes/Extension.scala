@@ -17,5 +17,5 @@ final case class Extension(
 ) extends Elements
 
 object Extension {
-  implicit val extensionElementDecoder: ElementDecoder[Extension] = derivation.deriveElementDecoder
+  implicit val extensionElementDecoder: ElementDecoder[Extension] = derivation.semiauto.deriveElementDecoder
 }

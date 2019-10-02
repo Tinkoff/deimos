@@ -14,5 +14,5 @@ final case class AttributeGroup(
 ) extends Global
 
 object AttributeGroup {
-  implicit val attributeGroupElementDecoder: ElementDecoder[AttributeGroup] = derivation.deriveElementDecoder
+  implicit val attributeGroupElementDecoder: ElementDecoder[AttributeGroup] = derivation.semiauto.deriveElementDecoder
 }

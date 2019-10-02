@@ -131,7 +131,7 @@ object Codegen {
         val imports = List(
           IMPORT("ru.tinkoff.phobos.encoding._"),
           IMPORT("ru.tinkoff.phobos.decoding._"),
-          IMPORT("ru.tinkoff.phobos.derivation._"),
+          IMPORT("ru.tinkoff.phobos.derivation.semiauto._"),
           IMPORT("ru.tinkoff.phobos.syntax._"),
           IMPORT("output.namespaces._"),
         ) ++ importedFiles
