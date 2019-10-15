@@ -4,4 +4,4 @@ import java.nio.file.Path
 
 import ru.tinkoff.deimos.structure.XmlCodecInfo
 
-case class OperationContext(currentPath: Path, xmlCodecInfo: Option[XmlCodecInfo] = None)
+case class OperationContext(currentPath: Path)

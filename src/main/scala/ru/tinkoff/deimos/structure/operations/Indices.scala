@@ -3,7 +3,7 @@ package ru.tinkoff.deimos.structure.operations
 import java.nio.file.Path
 
 import ru.tinkoff.deimos.schema.classes._
-import ru.tinkoff.deimos.structure.{GlobalName, ImportsIndex, LazyClass, Tag}
+import ru.tinkoff.deimos.structure.{GlobalName, ImportsIndex}
 
 final class Indices(
     val complexTypes: ImportsIndex[Path, GlobalName, ComplexType] = new ImportsIndex,
@@ -13,7 +13,7 @@ final class Indices(
     val groups: ImportsIndex[Path, GlobalName, Group] = new ImportsIndex,
     val attributeGroups: ImportsIndex[Path, GlobalName, AttributeGroup] = new ImportsIndex,
 //    val classes: ImportsIndex[Path, String, Class] = new ImportsIndex,
-    val lazyClasses: ImportsIndex[Path, GlobalName, LazyClass] = new ImportsIndex,
+//    val lazyClasses: ImportsIndex[Path, GlobalName, LazyClass] = new ImportsIndex,
     val namespaces: ImportsIndex[Path, String, String] = new ImportsIndex,
     val schemas: Map[Path, Schema],
     val availableFiles: Map[Path, List[Path]],

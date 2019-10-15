@@ -1,19 +1,15 @@
 package ru.tinkoff.deimos.structure.operations
 
-import cats.Eval
 import ru.tinkoff.deimos.schema.classes.{ComplexContent, ComplexType, Extension}
 import ru.tinkoff.deimos.schema.classes.namespaces.xsdUri
-import ru.tinkoff.deimos.structure.{operations, _}
+import ru.tinkoff.deimos.structure._
 
 import scala.annotation.tailrec
 
 object ProcessComplexType {
-  def apply(ctx: XsdContext)(complexType: ComplexType, typeName: Option[String]): LazyClass = {
-    val realTypeName = complexType.name
-      .orElse(ctx.operationContext.xmlCodecInfo.map(_.name))
-      .orElse(typeName)
-      .getOrElse(throw InvalidSchema("Don't know name", ctx.operationContext))
-
+  def apply(ctx: XsdContext)(complexType: ComplexType,
+                             realTypeName: String,
+                             globalName: Option[GlobalName]): (GeneratedClass, GeneratedPackage) = {
     val attributes =
       ctx.deduplicateParams(
         complexType.attribute.map(ProcessAttribute(ctx)) ++
@@ -23,30 +19,32 @@ object ProcessComplexType {
       println("Warning: mixed content")
     }
 
-    def addToIndexIfGlobal(clazz: LazyClass): Unit = {
-      (complexType.name, ctx.operationContext.xmlCodecInfo.map(_.name)) match {
-        case (Some(localName), _) =>
-          ctx.indices.lazyClasses
-            .add(ctx.operationContext.currentPath, GlobalName(ctx.targetNamespace.getOrElse(""), localName), clazz)
-        case (None, Some(codecName)) =>
-          ctx.indices.lazyClasses
-            .add(ctx.operationContext.currentPath, GlobalName(ctx.targetNamespace.getOrElse(""), codecName), clazz)
+    def addToPackageIfGlobal(ctx: XsdContext, clazz: GeneratedClass): GeneratedPackage = {
+//      println((complexType.name, xmlCodecInfo.map(_.name)))
+      globalName match {
+        case Some(globalName) =>
+          ctx.generatedPackage.addClass(
+            ctx.operationContext.currentPath,
+            globalName,
+            clazz
+          )
         case _ =>
+          println("Not global:")
+          println(clazz)
+          ctx.generatedPackage
       }
     }
 
-    def processSimpleContent: LazyClass = {
-      def getExtensionParams(textName: String, extension: Extension): Eval[List[Param]] = {
+    def processSimpleContent: (GeneratedClass, GeneratedPackage) = {
+      def getExtensionParams(textName: String, extension: Extension): (List[Param], GeneratedPackage) = {
         val globalBaseTypeName = ctx.toGlobalName(extension.base)
         ctx.getSimpleTypeByName(globalBaseTypeName) match {
           case Some(textType) =>
-            Eval.now(Text(textName, Pure(textType)) :: extension.attribute.map(ProcessAttribute(ctx)))
+            (Text(textName, Pure(textType)) :: extension.attribute.map(ProcessAttribute(ctx)), ctx.generatedPackage)
           case None =>
             println("Strange place") // Cause it must be always simple type
-            ctx
-              .getOrProcessClass(globalBaseTypeName)
-              .content
-              .map(_.params ++ extension.attribute.map(ProcessAttribute(ctx)))
+            val (clazz, generatedPackage) = ctx.getOrProcessClass(globalBaseTypeName)
+            (clazz.params ++ extension.attribute.map(ProcessAttribute(ctx)), generatedPackage)
         }
       }
 
@@ -55,15 +53,13 @@ object ProcessComplexType {
       simpleContent match {
         case _ if simpleContent.extension.isDefined => // TODO: Attribute groups etc
 
-          val params = getExtensionParams(leafParamName, simpleContent.extension.get)
-          val clazz = LazyClass(
-            typeName = realTypeName,
-            content = params.map(ps => Content(ps ++ attributes, List.empty)),
-            xmlCodecInfo = ctx.operationContext.xmlCodecInfo,
-            pkg = ""
+          val (params, generatedPackage) = getExtensionParams(leafParamName, simpleContent.extension.get)
+          val clazz = GeneratedClass(
+            name = realTypeName,
+            params = params ++ attributes,
           )
-          addToIndexIfGlobal(clazz)
-          clazz
+          val newCtx = ctx.copy(generatedPackage = generatedPackage)
+          (clazz, addToPackageIfGlobal(newCtx, clazz))
 
         // TODO: Restriction
         case _ =>
@@ -71,14 +67,15 @@ object ProcessComplexType {
       }
     }
 
-    def processComplexContent: LazyClass = {
-      def processExtension(complexContent: ComplexContent): LazyClass = {
+    def processComplexContent: (GeneratedClass, GeneratedPackage) = {
+      def processExtension(complexContent: ComplexContent): (GeneratedClass, GeneratedPackage) = {
 
-        val extension          = complexContent.extension.get
-        val globalBaseTypeName = ctx.toGlobalName(extension.base)
-        val inheritedParams    = ctx.getOrProcessClass(globalBaseTypeName).content.map(_.params) // TODO: Review not repeated
-        val selfParams =
-          Eval.later(ProcessElements(ctx.copy(ctx.operationContext.copy(xmlCodecInfo = None)))(extension))
+        val extension                         = complexContent.extension.get
+        val globalBaseTypeName                = ctx.toGlobalName(extension.base)
+        val (baseClass, baseGeneratedPackage) = ctx.getOrProcessClass(globalBaseTypeName) // TODO: Review not repeated
+        val newCtx: XsdContext                = ctx.copy(generatedPackage = baseGeneratedPackage)
+        val (selfParams, generatedPackage)    = ProcessElements.apply(newCtx)(extension)
+
         val attributes =
           extension.attribute.map(ProcessAttribute(ctx)) ++
             extension.attributeGroup.flatMap(ProcessAttributeGroup(ctx))
@@ -86,25 +83,19 @@ object ProcessComplexType {
         def notRepeated(params: List[Tag])(param: Param): Boolean =
           !attributes.exists(_.name == param.name) && !params.exists(_.name == param.name)
 
-        val content =
-          for {
-            inherited <- inheritedParams
-            self      <- selfParams
-          } yield Content(attributes ++ inherited.filter(notRepeated(self)) ++ self, List.empty)
+        val params = attributes ++ baseClass.params.filter(notRepeated(selfParams)) ++ selfParams
 
         val clazz =
-          LazyClass(
-            typeName = realTypeName,
-            content = content,
-            xmlCodecInfo = ctx.operationContext.xmlCodecInfo,
-            pkg = ""
+          GeneratedClass(
+            name = realTypeName,
+            params = params,
           )
 
-        addToIndexIfGlobal(clazz)
-        clazz
+        val newCtx2 = newCtx.copy(generatedPackage = generatedPackage)
+        (clazz, addToPackageIfGlobal(newCtx2, clazz))
       }
 
-      def processRestriction(complexContent: ComplexContent): LazyClass = {
+      def processRestriction(complexContent: ComplexContent): (GeneratedClass, GeneratedPackage) = {
         // TODO: review this. Maybe it goes to another file
         @tailrec
         def findRestrictionBase(complexType: ComplexType): GlobalName = {
@@ -117,7 +108,8 @@ object ProcessComplexType {
               } else {
                 val baseType = ctx.indices.complexTypes
                   .get(ctx.availableFiles, baseGlobalName)
-                  .getOrElse(throw InvalidSchema(s"Base type is not defined: $base for $complexType", ctx.operationContext))
+                  .getOrElse(
+                    throw InvalidSchema(s"Base type is not defined: $base for $complexType", ctx.operationContext))
                 if (baseType.complexContent.flatMap(_.restriction.flatMap(_.base)).isDefined) {
                   findRestrictionBase(baseType)
                 } else {
@@ -132,16 +124,15 @@ object ProcessComplexType {
         val parent = findRestrictionBase(complexType)
         if (parent == GlobalName(xsdUri, "anyType")) {
           val clazz =
-            LazyClass(
-              typeName = realTypeName,
-              content = Eval.now(Content(List.empty, List.empty)),
-              xmlCodecInfo = ctx.operationContext.xmlCodecInfo,
-              pkg = ""
+            GeneratedClass(
+              name = realTypeName,
+              params = List.empty,
             )
-          addToIndexIfGlobal(clazz)
-          clazz
+          (clazz, addToPackageIfGlobal(ctx, clazz))
         } else {
-          ctx.getOrProcessClass(parent)
+          val (clazz, generatedPackage) = ctx.getOrProcessClass(parent)
+          val newClass = clazz.copy(name = realTypeName)
+          (newClass, addToPackageIfGlobal(ctx.copy(generatedPackage = generatedPackage), newClass))
         }
       }
 
@@ -158,17 +149,15 @@ object ProcessComplexType {
       case _ if complexType.complexContent.isDefined => processComplexContent
 
       case _ =>
-        val elements =
-          Eval.later(ProcessElements(ctx.copy(ctx.operationContext.copy(xmlCodecInfo = None)))(complexType))
+        val (elements, generatedPackage) =
+          ProcessElements(ctx)(complexType)
         val clazz =
-          LazyClass(
-            typeName = realTypeName,
-            content = elements.map(es => Content(es ++ attributes, List.empty)),
-            xmlCodecInfo = ctx.operationContext.xmlCodecInfo,
-            pkg = ""
+          GeneratedClass(
+            name = realTypeName,
+            params = elements ++ attributes,
           )
-        addToIndexIfGlobal(clazz)
-        clazz
+        val newCtx = ctx.copy(generatedPackage = generatedPackage)
+        (clazz, addToPackageIfGlobal(newCtx, clazz))
     }
   }
 }

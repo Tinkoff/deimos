@@ -4,19 +4,45 @@ import java.nio.file.Path
 
 import cats.Eval
 
-final case class GeneratedPackage(
+final case class GeneratedPackageWrapper(
     namespaces: Map[String, String],
-    classes: ImportsIndex[Path, GlobalName, Class],
+    files: Map[Path, GeneratedFile],
     imports: Map[Path, List[Path]]
 )
 
-final case class Content(params: List[Param], children: List[LazyClass])
+final case class GeneratedPackage(
+    files: Map[Path, GeneratedFile]
+) {
+  def addClass(path: Path, globalName: GlobalName, clazz: GeneratedClass): GeneratedPackage = {
+    files.get(path) match {
+      case Some(file) => GeneratedPackage(files.updated(path, file.addClass(globalName, clazz)))
+      case None       => GeneratedPackage(files.updated(path, GeneratedFile(Map(globalName -> clazz), Set())))
+    }
+  }
 
-final case class LazyClass(typeName: String, content: Eval[Content], xmlCodecInfo: Option[XmlCodecInfo], pkg: String) {
-  def toClass = Class(typeName, content.value, xmlCodecInfo, pkg)
+  def addXmlCodec(path: Path, xmlCodec: XmlCodecInfo): GeneratedPackage = {
+    files.get(path) match {
+      case Some(file) => GeneratedPackage(files.updated(path, file.addXmlCodec(xmlCodec)))
+      case None       => GeneratedPackage(files.updated(path, GeneratedFile(Map(), Set(xmlCodec))))
+    }
+  }
 }
 
-final case class Class(typeName: String, content: Content, xmlCodecInfo: Option[XmlCodecInfo], pkg: String)
+object GeneratedPackage {
+  def empty = GeneratedPackage(Map())
+}
+
+final case class GeneratedFile(classes: Map[GlobalName, GeneratedClass], xmlCodecs: Set[XmlCodecInfo]) {
+  def addClass(globalName: GlobalName, clazz: GeneratedClass): GeneratedFile =
+    copy(classes = classes.updated(globalName, clazz), xmlCodecs)
+  def addXmlCodec(xmlCodec: XmlCodecInfo): GeneratedFile =
+    copy(xmlCodecs = xmlCodecs + xmlCodec)
+}
+
+final case class GeneratedClass(
+    name: String,
+    params: List[Param],
+)
 
 sealed trait Param {
   val name: String
@@ -28,8 +54,9 @@ final case class Tag(
     typ: Typ,
     namespace: Option[String],
     pkg: Option[String],
-    inlineDef: Option[LazyClass]
+    inlineDef: Option[GeneratedClass]
 ) extends Param
+
 final case class Text(name: String, typ: Pure)                           extends Param
 final case class Attr(name: String, typ: Typ, namespace: Option[String]) extends Param
 
