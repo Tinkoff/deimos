@@ -4,7 +4,7 @@ import java.nio.file.{Path, Paths}
 
 import ru.tinkoff.deimos.schema.FileInfo
 import ru.tinkoff.deimos.schema.classes._
-import ru.tinkoff.deimos.structure.operations.{Indices, OperationContext, ProcessGlobalElement, XsdContext, XsdStack}
+import ru.tinkoff.deimos.structure.operations.{Indices, ProcessGlobalElement, XsdContext, XsdMonad, XsdStack}
 
 object Structure {
   def process(schemas: Map[Path, FileInfo]): GeneratedPackageWrapper = {
@@ -57,15 +57,13 @@ object Structure {
         for { (prefix, uri) <- namespaces } { indices.namespaces.add(path, prefix, uri) }
     }
 
-    val generatedPackage = schemas.foldLeft(GeneratedPackage.empty) {
-      case (generatedPackage, (path, FileInfo(schema, _))) =>
-        schema.element.foldLeft(generatedPackage) { (oldPackage, element) =>
-          val operationContext = OperationContext(path)
-          val context          = new XsdContext(indices, operationContext, XsdStack.empty, oldPackage)
-          val (_, newPackage)  = ProcessGlobalElement(context)(element)
-          newPackage
-        }
-    }
+    val ctx = new XsdContext(indices, schemas.keys.head, XsdStack.empty, GeneratedPackage.empty)
+    val generatedPackage = XsdMonad.traverse(schemas.toList){
+      case (path, FileInfo(schema, _)) =>
+        XsdMonad.traverse(schema.element) { element =>
+          ProcessGlobalElement(element)
+        }.changeContext(_.copy(currentPath = path))
+    }.run(ctx).fold(err => throw err, result => result._2)
 
     val imports =
       availableFiles.transform(

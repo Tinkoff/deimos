@@ -2,19 +2,20 @@ package ru.tinkoff.deimos.structure.operations
 
 import ru.tinkoff.deimos.schema.classes.AttributeGroup
 import ru.tinkoff.deimos.structure._
+import cats.syntax.functor._
+import cats.syntax.flatMap._
 
 object ProcessAttributeGroup {
-  def apply(ctx: XsdContext)(attributeGroup: AttributeGroup): List[Attr] = {
-    val (path, realAttributeGroup) = attributeGroup.ref match {
-      case Some(ref) =>
-        ctx.indices.attributeGroups
-          .getItem(ctx.availableFiles, ctx.toGlobalName(ref))
-          .getOrElse(throw InvalidSchema(s"$ref references to nothing", ctx.operationContext))
-      case None => (ctx.operationContext.currentPath, attributeGroup)
-    }
-
-    val newCtx = ctx.copy(ctx.operationContext.copy(currentPath = path))
-    realAttributeGroup.attribute.map(ProcessAttribute(newCtx)) ++
-      realAttributeGroup.attributeGroup.flatMap(ProcessAttributeGroup(newCtx))
-  }
+  def apply(attributeGroup: AttributeGroup): XsdMonad[List[Attr]] =
+    for {
+      ctx <- XsdMonad.ctx
+      (path, realAttributeGroup) = attributeGroup.ref match {
+        case Some(ref) =>
+          ctx.indices.attributeGroups
+            .getItem(ctx.availableFiles, ctx.toGlobalName(ref))
+            .getOrElse(throw InvalidSchema(s"$ref references to nothing", ctx.currentPath))
+        case None => (ctx.currentPath, attributeGroup)
+      }
+      attributes <- ProcessAttributes(realAttributeGroup).changeContext(_.copy(currentPath = path))
+    } yield attributes
 }

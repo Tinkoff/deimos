@@ -18,7 +18,7 @@ final case class ComplexType(
     @xmlns(xsd) element: List[Element],
     @xmlns(xsd) group: List[Group],
     @xmlns(xsd) attributeGroup: List[AttributeGroup],
-) extends Global with Elements
+) extends Global with Elements with Attributes
 
 object ComplexType {
   implicit val complexTypeElementDecoder: ElementDecoder[ComplexType] = derivation.semiauto.deriveElementDecoder

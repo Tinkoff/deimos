@@ -1,88 +1,96 @@
 package ru.tinkoff.deimos.structure.operations
 
+import cats.syntax.flatMap._
+import cats.syntax.functor._
+
 import ru.tinkoff.deimos.schema.classes.{All, Choice, Element, Elements, Group, Sequence}
 import ru.tinkoff.deimos.structure._
 
 object ProcessElements {
-  def processElements(ctx: XsdContext)(elements: List[Element]): (List[Tag], GeneratedPackage) =
-    elements.foldLeft((List.empty[Tag], ctx.generatedPackage)) {
-      case ((oldTags, oldPackage), element) =>
-        val (tag, newPackage) = ProcessLocalElement(ctx.copy(generatedPackage = oldPackage))(element)
-        (tag.fold(oldTags)(tag => oldTags :+ tag), newPackage)
-    }
+  def processElements(elements: List[Element]): XsdMonad[List[Tag]] =
+    XsdMonad.traverse(elements)(ProcessLocalElement.apply).map(_.flatten)
 
-  def processChoices(ctx: XsdContext)(choices: List[Choice]): (List[Tag], GeneratedPackage) =
-    choices.foldLeft((List.empty[Tag], ctx.generatedPackage)) {
-      case ((oldTags, oldPackage), choice) =>
-        val (rawNewTags, newPackage) = ProcessElements(ctx.copy(generatedPackage = oldPackage))(choice)
-        val minOccurs                = choice.minOccurs
-        val maxOccurs                = choice.maxOccurs
-        val newTags = (minOccurs, maxOccurs) match {
-          case (_, Some("unbounded"))      => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
-          case (_, Some(a)) if a.toInt > 1 => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
-          case (Some(0), _)                => rawNewTags.map(element => element.copy(typ = element.typ.toOptional))
-          case _                           => rawNewTags.map(element => element.copy(typ = element.typ.toOptional))
-        }
-        (oldTags ++ newTags, newPackage)
-    }
+  def processChoices(choices: List[Choice]): XsdMonad[List[Tag]] =
+    XsdMonad
+      .traverse(choices) { choice =>
+        for {
+          rawNewTags <- ProcessElements(choice)
+          minOccurs  = choice.minOccurs
+          maxOccurs  = choice.maxOccurs
+          newTags = (minOccurs, maxOccurs) match {
+            case (_, Some("unbounded"))      => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
+            case (_, Some(a)) if a.toInt > 1 => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
+            case (Some(0), _)                => rawNewTags.map(element => element.copy(typ = element.typ.toOptional))
+            case _                           => rawNewTags.map(element => element.copy(typ = element.typ.toOptional))
+          }
+        } yield newTags
+      }
+      .map(_.flatten)
 
-  def processGroup(ctx: XsdContext)(groups: List[Group]): (List[Tag], GeneratedPackage) =
-    groups.foldLeft((List.empty[Tag], ctx.generatedPackage)) {
-      case ((oldTags, oldPackage), group) =>
-        val (newFile, realGroup) = group.ref match {
-          case Some(ref) =>
-            ctx.indices.groups
-              .getItem(ctx.availableFiles, ctx.toGlobalName(ref))
-              .getOrElse(throw InvalidSchema(s"$ref refrences to nothing", ctx.operationContext))
-          case None => (ctx.operationContext.currentPath, group)
-        }
-        val newCtx                   = ctx.copy(operationContext = OperationContext(newFile), generatedPackage = oldPackage)
-        val (rawNewTags, newPackage) = ProcessElements(newCtx)(realGroup) // TODO: Check file here
-        val minOccurs                = group.minOccurs.orElse(realGroup.minOccurs)
-        val maxOccurs                = group.maxOccurs.orElse(realGroup.maxOccurs)
-        val newTags = (minOccurs, maxOccurs) match {
-          case (_, Some("unbounded"))      => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
-          case (_, Some(a)) if a.toInt > 1 => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
-          case (Some(0), _)                => rawNewTags.map(element => element.copy(typ = element.typ.toOptional))
-          case _                           => rawNewTags
-        }
-        (oldTags ++ newTags, newPackage)
-    }
+  def processGroup(groups: List[Group]): XsdMonad[List[Tag]] =
+    XsdMonad
+      .traverse(groups) { group =>
+        for {
+          ctx <- XsdMonad.ctx
+          (newFile, realGroup) = group.ref match {
+            case Some(ref) =>
+              ctx.indices.groups
+                .getItem(ctx.availableFiles, ctx.toGlobalName(ref))
+                .getOrElse(throw InvalidSchema(s"$ref refrences to nothing", ctx.currentPath))
+            case None => (ctx.currentPath, group)
+          }
+          rawNewTags <- ProcessElements(realGroup).changeContext(_.copy(currentPath = newFile))
+          minOccurs  = group.minOccurs.orElse(realGroup.minOccurs)
+          maxOccurs  = group.maxOccurs.orElse(realGroup.maxOccurs)
+          newTags = (minOccurs, maxOccurs) match {
+            case (_, Some("unbounded"))      => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
+            case (_, Some(a)) if a.toInt > 1 => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
+            case (Some(0), _)                => rawNewTags.map(element => element.copy(typ = element.typ.toOptional))
+            case _                           => rawNewTags
+          }
+        } yield newTags
+      }
+      .map(_.flatten)
 
-  def processSequence(ctx: XsdContext)(sequences: List[Sequence]): (List[Tag], GeneratedPackage) =
-    sequences.foldLeft((List.empty[Tag], ctx.generatedPackage)) {
-      case ((oldTags, oldPackage), sequence) =>
-        val (rawNewTags, newPackage) = ProcessElements(ctx.copy(generatedPackage = oldPackage))(sequence)
-        val minOccurs                = sequence.minOccurs
-        val maxOccurs                = sequence.maxOccurs
-        val newTags = (minOccurs, maxOccurs) match {
-          case (_, Some("unbounded"))      => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
-          case (_, Some(a)) if a.toInt > 1 => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
-          case (Some(0), _)                => rawNewTags.map(element => element.copy(typ = element.typ.toOptional))
-          case _                           => rawNewTags
-        }
-        (oldTags ++ newTags, newPackage)
-    }
+  def processSequence(sequences: List[Sequence]): XsdMonad[List[Tag]] =
+    XsdMonad
+      .traverse(sequences) { sequence =>
+        for {
+          rawNewTags <- ProcessElements(sequence)
+          minOccurs  = sequence.minOccurs
+          maxOccurs  = sequence.maxOccurs
+          newTags = (minOccurs, maxOccurs) match {
+            case (_, Some("unbounded"))      => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
+            case (_, Some(a)) if a.toInt > 1 => rawNewTags.map(element => element.copy(typ = element.typ.toListing))
+            case (Some(0), _)                => rawNewTags.map(element => element.copy(typ = element.typ.toOptional))
+            case _                           => rawNewTags
+          }
+        } yield newTags
+      }
+      .map(_.flatten)
 
-  def processAlls(ctx: XsdContext)(alls: List[All]): (List[Tag], GeneratedPackage) =
-    alls.foldLeft((List.empty[Tag], ctx.generatedPackage)) {
-      case ((oldTags, oldPackage), all) =>
-        val (rawNewTags, newPackage) = ProcessElements(ctx.copy(generatedPackage = oldPackage))(all)
-        val newTags = if (all.minOccurs.contains(0)) {
-          rawNewTags.map(element => element.copy(typ = element.typ.toOptional))
-        } else {
-          rawNewTags
-        }
-        (oldTags ++ newTags, newPackage)
-    }
+  def processAlls(alls: List[All]): XsdMonad[List[Tag]] =
+    XsdMonad
+      .traverse(alls) { all =>
+        for {
+          rawNewTags <- ProcessElements(all)
+          newTags = if (all.minOccurs.contains(0)) {
+            rawNewTags.map(element => element.copy(typ = element.typ.toOptional))
+          } else {
+            rawNewTags
+          }
+        } yield newTags
+      }
+      .map(_.flatten)
 
-  def apply(ctx: XsdContext)(block: Elements): (List[Tag], GeneratedPackage) = {
-    val (elements, elementsPackage)   = processElements(ctx)(block.element)
-    val (choices, choicesPackage)     = processChoices(ctx.copy(generatedPackage = elementsPackage))(block.choice)
-    val (groups, groupsPackage)       = processGroup(ctx.copy(generatedPackage = choicesPackage))(block.group)
-    val (sequences, sequencesPackage) = processSequence(ctx.copy(generatedPackage = groupsPackage))(block.sequence)
-    val (alls, allsPackage)           = processAlls(ctx.copy(generatedPackage = sequencesPackage))(block.all)
-
-    (ctx.deduplicateParams(elements ++ choices ++ groups ++ sequences ++ alls), allsPackage)
+  def apply(block: Elements): XsdMonad[List[Tag]] = {
+    for {
+      ctx       <- XsdMonad.ctx
+      elements  <- processElements(block.element)
+      choices   <- processChoices(block.choice)
+      groups    <- processGroup(block.group)
+      sequences <- processSequence(block.sequence)
+      alls      <- processAlls(block.all)
+    } yield ctx.deduplicateParams(elements ++ choices ++ groups ++ sequences ++ alls)
   }
 }

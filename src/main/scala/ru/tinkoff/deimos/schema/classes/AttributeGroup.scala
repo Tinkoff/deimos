@@ -11,7 +11,7 @@ final case class AttributeGroup(
     @attr ref: Option[String],
     @xmlns(xsd) attribute: List[Attribute],
     @xmlns(xsd) attributeGroup: List[AttributeGroup],
-) extends Global
+) extends Global with Attributes
 
 object AttributeGroup {
   implicit val attributeGroupElementDecoder: ElementDecoder[AttributeGroup] = derivation.semiauto.deriveElementDecoder
