@@ -14,7 +14,7 @@ object ProcessComplexType {
             globalName: Option[GlobalName]): XsdMonad[GeneratedClass] = {
     def addToPackageIfGlobal(clazz: GeneratedClass): XsdMonad[Unit] =
       for {
-        ctx <- XsdMonad.ctx
+        ctx <- XsdMonad.ask
         _ <- globalName match {
               case Some(globalName) =>
                 XsdMonad.addClass(ctx.currentPath, globalName, clazz)
@@ -28,7 +28,7 @@ object ProcessComplexType {
     def processSimpleContent: XsdMonad[GeneratedClass] = {
       def getExtensionParams(textName: String, extension: Extension): XsdMonad[List[Param]] =
         for {
-          ctx                <- XsdMonad.ctx
+          ctx                <- XsdMonad.ask
           globalBaseTypeName = ctx.toGlobalName(extension.base)
           attributes         <- ProcessAttributes(extension)
           params <- XsdMonad.getSimpleTypeByName(globalBaseTypeName).flatMap[List[Param]] {
@@ -52,7 +52,7 @@ object ProcessComplexType {
 
         // TODO: Restriction
         case _ =>
-          XsdMonad.failure("Not implemented")
+          XsdMonad.raiseError("Not implemented")
       }
     }
 
@@ -64,7 +64,7 @@ object ProcessComplexType {
         val extension = complexContent.extension.get
 
         for {
-          ctx                <- XsdMonad.ctx
+          ctx                <- XsdMonad.ask
           globalBaseTypeName = ctx.toGlobalName(extension.base)
           baseClass          <- XsdMonad.getOrProcessClass(globalBaseTypeName) // TODO: Review not repeated
           selfParams         <- ProcessElements(extension)
@@ -81,7 +81,7 @@ object ProcessComplexType {
         def findRestrictionBase(complexType: ComplexType): XsdMonad[GlobalName] = {
           val base = complexType.complexContent.get.restriction.get.base.get
           for {
-            ctx            <- XsdMonad.ctx
+            ctx            <- XsdMonad.ask
             baseGlobalName = ctx.toGlobalName(base)
             res <- if (baseGlobalName == GlobalName(xsdUri, "anyType")) {
                     XsdMonad.pure(baseGlobalName)
@@ -118,7 +118,7 @@ object ProcessComplexType {
         case _ if complexContent.extension.isDefined   => processExtension(complexContent)
         case _ if complexContent.restriction.isDefined => processRestriction(complexContent)
         case _ =>
-          XsdMonad.failure("ComplexContent must contain either restriction or extension")
+          XsdMonad.raiseError("ComplexContent must contain either restriction or extension")
       }
     }
 

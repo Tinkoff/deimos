@@ -8,7 +8,7 @@ import cats.syntax.flatMap._
 object ProcessAttributeGroup {
   def apply(attributeGroup: AttributeGroup): XsdMonad[List[Attr]] =
     for {
-      ctx <- XsdMonad.ctx
+      ctx <- XsdMonad.ask
       (path, realAttributeGroup) = attributeGroup.ref match {
         case Some(ref) =>
           ctx.indices.attributeGroups
@@ -16,6 +16,6 @@ object ProcessAttributeGroup {
             .getOrElse(throw InvalidSchema(s"$ref references to nothing", ctx.currentPath))
         case None => (ctx.currentPath, attributeGroup)
       }
-      attributes <- ProcessAttributes(realAttributeGroup).changeContext(_.copy(currentPath = path))
+      attributes <- ProcessAttributes(realAttributeGroup).local(_.copy(currentPath = path))
     } yield attributes
 }

@@ -31,7 +31,7 @@ object ProcessElements {
     XsdMonad
       .traverse(groups) { group =>
         for {
-          ctx <- XsdMonad.ctx
+          ctx <- XsdMonad.ask
           (newFile, realGroup) = group.ref match {
             case Some(ref) =>
               ctx.indices.groups
@@ -39,7 +39,7 @@ object ProcessElements {
                 .getOrElse(throw InvalidSchema(s"$ref refrences to nothing", ctx.currentPath))
             case None => (ctx.currentPath, group)
           }
-          rawNewTags <- ProcessElements(realGroup).changeContext(_.copy(currentPath = newFile))
+          rawNewTags <- ProcessElements(realGroup).local(_.copy(currentPath = newFile))
           minOccurs  = group.minOccurs.orElse(realGroup.minOccurs)
           maxOccurs  = group.maxOccurs.orElse(realGroup.maxOccurs)
           newTags = (minOccurs, maxOccurs) match {
@@ -85,7 +85,7 @@ object ProcessElements {
 
   def apply(block: Elements): XsdMonad[List[Tag]] = {
     for {
-      ctx       <- XsdMonad.ctx
+      ctx       <- XsdMonad.ask
       elements  <- processElements(block.element)
       choices   <- processChoices(block.choice)
       groups    <- processGroup(block.group)

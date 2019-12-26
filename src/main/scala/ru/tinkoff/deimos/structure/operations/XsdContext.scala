@@ -13,7 +13,6 @@ final class XsdContext(
     val indices: Indices,
     val currentPath: Path,
     val stack: XsdStack,
-    val generatedPackage: GeneratedPackage,
 ) {
 
   lazy val availableFiles: List[Path] = indices.availableFiles(currentPath)

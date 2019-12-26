@@ -62,7 +62,7 @@ object Structure {
       case (path, FileInfo(schema, _)) =>
         XsdMonad.traverse(schema.element) { element =>
           ProcessGlobalElement(element)
-        }.changeContext(_.copy(currentPath = path))
+        }.local(_.copy(currentPath = path))
     }.run(ctx).fold(err => throw err, result => result._2)
 
     val imports =

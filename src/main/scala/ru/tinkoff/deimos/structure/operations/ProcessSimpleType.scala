@@ -7,7 +7,7 @@ import ru.tinkoff.deimos.structure._
 
 object ProcessSimpleType {
   def apply(simpleType: SimpleType): XsdMonad[String] = {
-    XsdMonad.ctx.map(ctx =>
+    XsdMonad.ask.map(ctx =>
       simpleType match { // TODO
         case _ if simpleType.restriction.isDefined =>
           simpleType.restriction.get.base

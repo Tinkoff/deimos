@@ -21,14 +21,14 @@ object ProcessLocalElement {
     def name: XsdMonad[String] =
       element.name match {
         case Some(name) => XsdMonad.pure(name)
-        case None       => XsdMonad.failure("Global element name is missing")
+        case None       => XsdMonad.raiseError("Global element name is missing")
       }
 
     def generateTypeByName(name: String): String = name.updated(0, name.head.toUpper)
 
     def namespace: XsdMonad[Option[String]] =
       for {
-        ctx    <- XsdMonad.ctx
+        ctx    <- XsdMonad.ask
         schema = ctx.indices.schemas(ctx.currentPath)
       } yield
         (schema.targetNamespace, schema.elementFormDefault, element.form) match {
@@ -40,7 +40,7 @@ object ProcessLocalElement {
     element match {
       case _ if element.ref.isDefined =>
         for {
-          ctx        <- XsdMonad.ctx
+          ctx        <- XsdMonad.ask
           globalName = ctx.toGlobalName(element.ref.get)
           namespace  <- namespace
           res <- ctx.indices.elements
@@ -48,7 +48,7 @@ object ProcessLocalElement {
                   .map {
                     case (newFile, e) =>
                       ProcessGlobalElement(e)
-                        .changeContext(_.copy(currentPath = newFile)) // TODO: review soft mode
+                        .local(_.copy(currentPath = newFile)) // TODO: review soft mode
                         .map { maybeTag =>
                           val tag = maybeTag.get
                           Some(tag.copy(typ = modifyType(tag.typ), namespace = namespace))
@@ -75,7 +75,7 @@ object ProcessLocalElement {
 
       case _ if element.`type`.isDefined =>
         for {
-          ctx            <- XsdMonad.ctx
+          ctx            <- XsdMonad.ask
           globalTypeName = element.`type`.map(ctx.toGlobalName).get
           name           <- name
           namespace      <- namespace

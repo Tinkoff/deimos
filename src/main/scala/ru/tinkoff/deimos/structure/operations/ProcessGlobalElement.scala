@@ -14,12 +14,12 @@ object ProcessGlobalElement {
     def name: XsdMonad[String] =
       element.name match {
         case Some(name) => XsdMonad.pure(name)
-        case None       => XsdMonad.failure("Global element name is missing")
+        case None       => XsdMonad.raiseError("Global element name is missing")
       }
 
     def namespace: XsdMonad[Option[String]] =
       for {
-        ctx    <- XsdMonad.ctx
+        ctx    <- XsdMonad.ask
         schema = ctx.indices.schemas(ctx.currentPath)
       } yield
         (schema.targetNamespace, schema.elementFormDefault, element.form) match {
@@ -31,7 +31,7 @@ object ProcessGlobalElement {
     element match {
       case _ if element.simpleType.isDefined =>
         for {
-          ctx       <- XsdMonad.ctx
+          ctx       <- XsdMonad.ask
           typ       <- ProcessSimpleType(element.simpleType.get)
           name      <- name
           namespace <- namespace
@@ -41,12 +41,12 @@ object ProcessGlobalElement {
 
       case _ if element.complexType.isDefined =>
         for {
-          ctx          <- XsdMonad.ctx
+          ctx          <- XsdMonad.ask
           name         <- name
           realTypeName = generateTypeByName(name) // TODO: Children classes here
           globalName   = GlobalName(ctx.targetNamespace.getOrElse(""), name)
           clazz <- ProcessComplexType(element.complexType.get, realTypeName, Some(globalName))
-                    .changeContext(_.copy(stack = ctx.stack.push(globalName)))
+                    .local(_.copy(stack = ctx.stack.push(globalName)))
           typ       = Pure(clazz.name)
           namespace <- namespace
           xmlCodec  = XmlCodecInfo(clazz.name, name, namespace)
@@ -55,7 +55,7 @@ object ProcessGlobalElement {
 
       case _ if element.`type`.isDefined =>
         for {
-          ctx            <- XsdMonad.ctx
+          ctx            <- XsdMonad.ask
           globalTypeName = element.`type`.map(ctx.toGlobalName).get
           typ <- XsdMonad.getSimpleTypeByName(globalTypeName).flatMap {
                   case Some(simpleType) =>

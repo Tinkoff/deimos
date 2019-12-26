@@ -9,7 +9,7 @@ import ru.tinkoff.deimos.structure._
 object ProcessAttribute {
   def apply(attribute: Attribute): XsdMonad[Attr] =
     for {
-      ctx <- XsdMonad.ctx
+      ctx <- XsdMonad.ask
       realAttribute = attribute.ref match {
         case Some(ref) =>
           ctx.indices.attributes
