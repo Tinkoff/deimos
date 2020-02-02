@@ -4,10 +4,10 @@ import java.nio.file.{Path, Paths}
 
 import ru.tinkoff.deimos.schema.FileInfo
 import ru.tinkoff.deimos.schema.classes._
-import ru.tinkoff.deimos.structure.operations.{Indices, OperationContext, ProcessComplexType, ProcessElement, XsdContext}
+import ru.tinkoff.deimos.structure.operations.{Indices, ProcessGlobalElement, XsdContext, XsdMonad, XsdStack}
 
 object Structure {
-  def process(schemas: Map[Path, FileInfo]): GeneratedPackage = {
+  def process(schemas: Map[Path, FileInfo]): GeneratedPackageWrapper = {
     val namespacesPrefixes: Map[String, String] =
       schemas.values.flatMap { fileInfo =>
         fileInfo.namespaces.map {
@@ -57,24 +57,23 @@ object Structure {
         for { (prefix, uri) <- namespaces } { indices.namespaces.add(path, prefix, uri) }
     }
 
-    schemas.foreach {
+    val ctx = new XsdContext(indices, schemas.keys.head, XsdStack.empty, GeneratedPackage.empty)
+    val generatedPackage = XsdMonad.traverse(schemas.toList){
       case (path, FileInfo(schema, _)) =>
-        schema.complexType.foreach { complexType =>
-          val context = new XsdContext(indices, OperationContext(path, None))
-          ProcessComplexType(context)(complexType, None)
-        }
-        schema.element.foreach { element =>
-          val elementName = element.name.getOrElse(throw InvalidSchema("Global element name is missing", ???))
-          val operationContext =
-            OperationContext(
-              path,
-              Some(XmlCodecInfo(elementName, schema.targetNamespace.flatMap(namespacesPrefixes.get)))
-            )
-          val context = new XsdContext(indices, operationContext)
-          ProcessElement(context)(element)
-        }
-    }
+        XsdMonad.traverse(schema.element) { element =>
+          ProcessGlobalElement(element)
+        }.local(_.copy(currentPath = path))
+    }.run(ctx).fold(err => throw err, result => result._2)
 
-    GeneratedPackage(namespacesPrefixes, indices.lazyClasses.map(_.toClass), availableFiles)
+    val imports =
+      availableFiles.transform(
+        (path, imports) => imports.filter(imprt => generatedPackage.files.contains(imprt) && imprt != path)
+      )
+
+    GeneratedPackageWrapper(
+      namespacesPrefixes,
+      generatedPackage.files,
+      imports,
+    )
   }
 }

@@ -11,5 +11,5 @@ final case class SimpleContent(
 )
 
 object SimpleContent {
-  implicit val simpleContentElementDecoder: ElementDecoder[SimpleContent] = derivation.deriveElementDecoder
+  implicit val simpleContentElementDecoder: ElementDecoder[SimpleContent] = derivation.semiauto.deriveElementDecoder
 }

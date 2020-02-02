@@ -16,5 +16,5 @@ final case class All(
 ) extends Elements
 
 object All {
-  implicit val allElementDecoder: ElementDecoder[All] = derivation.deriveElementDecoder
+  implicit val allElementDecoder: ElementDecoder[All] = derivation.semiauto.deriveElementDecoder
 }

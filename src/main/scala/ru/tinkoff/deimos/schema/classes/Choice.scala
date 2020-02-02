@@ -16,5 +16,5 @@ final case class Choice(
 ) extends Elements
 
 object Choice {
-  implicit val choiceElementDecoder: ElementDecoder[Choice] = derivation.deriveElementDecoder
+  implicit val choiceElementDecoder: ElementDecoder[Choice] = derivation.semiauto.deriveElementDecoder
 }

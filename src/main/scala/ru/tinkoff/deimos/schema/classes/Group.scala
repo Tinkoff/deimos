@@ -19,5 +19,5 @@ final case class Group(
 ) extends Global with Elements
 
 object Group {
-  implicit val groupElementDecoder: ElementDecoder[Group] = derivation.deriveElementDecoder
+  implicit val groupElementDecoder: ElementDecoder[Group] = derivation.semiauto.deriveElementDecoder
 }

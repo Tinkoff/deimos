@@ -6,5 +6,5 @@ import ru.tinkoff.phobos.derivation
 final case class Union()
 
 object Union {
-  implicit val unionElementDecoder: ElementDecoder[Union] = derivation.deriveElementDecoder
+  implicit val unionElementDecoder: ElementDecoder[Union] = derivation.semiauto.deriveElementDecoder
 }

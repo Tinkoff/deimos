@@ -14,8 +14,8 @@ final case class Extension(
   @xmlns(xsd) all: List[All],
   @xmlns(xsd) attribute: List[Attribute],
   @xmlns(xsd) attributeGroup: List[AttributeGroup],
-) extends Elements
+) extends Elements with Attributes
 
 object Extension {
-  implicit val extensionElementDecoder: ElementDecoder[Extension] = derivation.deriveElementDecoder
+  implicit val extensionElementDecoder: ElementDecoder[Extension] = derivation.semiauto.deriveElementDecoder
 }

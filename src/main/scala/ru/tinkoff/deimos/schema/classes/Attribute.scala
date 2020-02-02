@@ -17,5 +17,5 @@ final case class Attribute(
 ) extends Global
 
 object Attribute {
-  implicit val attributeElementDecoder: ElementDecoder[Attribute] = derivation.deriveElementDecoder
+  implicit val attributeElementDecoder: ElementDecoder[Attribute] = derivation.semiauto.deriveElementDecoder
 }

@@ -14,5 +14,5 @@ final case class SimpleType(
 ) extends Global
 
 object SimpleType {
-  implicit val simpleTypeElementDecoder: ElementDecoder[SimpleType] = derivation.deriveElementDecoder
+  implicit val simpleTypeElementDecoder: ElementDecoder[SimpleType] = derivation.semiauto.deriveElementDecoder
 }
