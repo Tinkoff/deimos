@@ -57,13 +57,13 @@ object Structure {
         for { (prefix, uri) <- namespaces } { indices.namespaces.add(path, prefix, uri) }
     }
 
-    val ctx = new XsdContext(indices, schemas.keys.head, XsdStack.empty, GeneratedPackage.empty)
+    val ctx = new XsdContext(indices, schemas.keys.head, XsdStack.empty)
     val generatedPackage = XsdMonad.traverse(schemas.toList){
       case (path, FileInfo(schema, _)) =>
         XsdMonad.traverse(schema.element) { element =>
           ProcessGlobalElement(element)
         }.local(_.copy(currentPath = path))
-    }.run(ctx).fold(err => throw err, result => result._2)
+    }.run(ctx, GeneratedPackage.empty).value.fold(err => throw err, result => result._2)
 
     val imports =
       availableFiles.transform(

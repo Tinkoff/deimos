@@ -46,8 +46,7 @@ final class XsdContext(
   def copy(
       currentPath: Path = currentPath,
       stack: XsdStack = stack,
-      generatedPackage: GeneratedPackage = generatedPackage
-  ) = new XsdContext(indices, currentPath, stack, generatedPackage)
+  ) = new XsdContext(indices, currentPath, stack)
 
 //  def getOrProcessClassName(name: GlobalName): (String, GeneratedPackage) =
 //    availableFiles.flatMap(generatedPackage.files.get).collectFirstSome(_.classes.get(name)) match {

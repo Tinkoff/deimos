@@ -12,6 +12,7 @@ import ru.tinkoff.phobos.decoding.{Cursor, ElementDecoder, XmlDecoder, XmlStream
 import cats.syntax.option._
 
 import scala.collection.JavaConverters._
+import scala.util.{Failure, Success, Try}
 
 object Parser {
   def parseRecursive(root: Path, prefix: Option[String] = None): Map[Path, FileInfo] = {
@@ -19,6 +20,7 @@ object Parser {
       val name = f.getName
       prefix.fold(name)(p => s"$p/${f.getName}")
     }
+
     val current = prefix.fold(root)(root.resolve)
 
     val (dirs, files) = Files.newDirectoryStream(current).iterator.asScala.map(_.toFile).partition(_.isDirectory)
@@ -32,23 +34,28 @@ object Parser {
   }
 
   def parseSingle(root: Path, name: String): (Path, FileInfo) = {
-    val bytes               = Files.readAllBytes(root.resolve(name))
-    val inputFactory        = new InputFactoryImpl
-    val sr: XmlStreamReader = inputFactory.createAsyncForByteArray()
-    val cursor = new Cursor(sr)
-    sr.getInputFeeder.feedInput(bytes, 0, bytes.length)
-    sr.getInputFeeder.endOfInput()
-    while (cursor.getEventType != XMLStreamConstants.START_ELEMENT) {
-      cursor.next()
-    }
-    val namespaces =
-      (for (i <- 0 until cursor.getNamespaceCount) yield cursor.getNamespacePrefix(i) -> cursor.getNamespaceURI(i)).toMap
-    val schema = implicitly[ElementDecoder[Schema]]
-      .decodeAsElement(cursor, "schema", implicitly[Namespace[xsd.type]].getNamespace.some)
-      .result(cursor.history)
-      .fold(err => throw err, identity)
+    Try {
+      val bytes = Files.readAllBytes(root.resolve(name))
+      val inputFactory = new InputFactoryImpl
+      val sr: XmlStreamReader = inputFactory.createAsyncForByteArray()
+      val cursor = new Cursor(sr)
+      sr.getInputFeeder.feedInput(bytes, 0, bytes.length)
+      sr.getInputFeeder.endOfInput()
+      while (cursor.getEventType != XMLStreamConstants.START_ELEMENT) {
+        cursor.next()
+      }
+      val namespaces =
+        (for (i <- 0 until cursor.getNamespaceCount) yield cursor.getNamespacePrefix(i) -> cursor.getNamespaceURI(i)).toMap
+      val schema = implicitly[ElementDecoder[Schema]]
+        .decodeAsElement(cursor, "schema", implicitly[Namespace[xsd.type]].getNamespace.some)
+        .result(cursor.history)
+        .fold(err => throw err, identity)
 
-    sr.close()
-    root.resolve(name).normalize() -> FileInfo(schema, namespaces)
+      sr.close()
+      root.resolve(name).normalize() -> FileInfo(schema, namespaces)
+    } match {
+      case Failure(exception) => throw new Exception(s"Error happened while decoding ${root.resolve(name)}", exception)
+      case Success(value) => value
+    }
   }
 }
