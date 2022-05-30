@@ -2,7 +2,7 @@
 
 This is a code generation script for [phobos](https://github.com/TinkoffCreditSystems/phobos) library. Example of use:
 ```
-sbt run xsd destination
+sbt "run xsd destination"
 ```
 Where `xsd` is directory with xsd files and `destination` is destination directory for `.scala` sources.
 
