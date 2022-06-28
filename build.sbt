@@ -18,10 +18,7 @@ ThisBuild / libraryDependencies ++= Seq(
 ThisBuild / updateOptions := updateOptions.value.withGigahorse(false)
 
 lazy val deimos =
-  project in file(".")
-
-lazy val plugin =
-  (project in file("plugin"))
+  (project in file("."))
     .settings(
       publishVersion := "0.1",
       organization := "ru.tinkoff",
@@ -40,7 +37,7 @@ lazy val plugin =
       scmInfo := Some(
         ScmInfo(
           url("https://github.com/Tinkoff/deimos"),
-          "git@github.com:Tinkoff/deioms",
+          "git@github.com:Tinkoff/deimos",
         ),
       ),
       developers := List(
@@ -51,7 +48,7 @@ lazy val plugin =
           url = url("https://github.com/valentiay"),
         ),
       ),
-      description := "Fast xml data binding library",
+      description := "Binaries for generating classes from XML Schemas for Phobos library",
       licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
       homepage := Some(url("https://github.com/Tinkoff/phobos")),
       // Remove all additional repository other than Maven Central from POM
@@ -62,4 +59,3 @@ lazy val plugin =
       moduleName := s"deimos-plugin",
       Compile / doc / sources := List.empty,
     )
-    .dependsOn(deimos)
